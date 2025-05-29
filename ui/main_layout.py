@@ -679,12 +679,15 @@ class MainLayout(QWidget):
         QTimer.singleShot(3000, lambda: self.fade_out_notification(popup))
 
     def fade_out_notification(self, popup):
-        fade_out = QPropertyAnimation(popup, b"windowOpacity")
-        fade_out.setDuration(300)
-        fade_out.setStartValue(1)
-        fade_out.setEndValue(0)
-        fade_out.finished.connect(popup.close)
-        fade_out.start()
+        if popup is None or not popup.isVisible():
+            return
+
+        self.fade_out = QPropertyAnimation(popup, b"windowOpacity")
+        self.fade_out.setDuration(300)
+        self.fade_out.setStartValue(1)
+        self.fade_out.setEndValue(0)
+        self.fade_out.finished.connect(popup.close)
+        self.fade_out.start()
 
     def navigate_to_main_dashboard(self):
         self.sidebar.show()

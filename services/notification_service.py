@@ -20,7 +20,7 @@ def mark_as_read(notification_id):
         if notification_id == "all":
             response = requests.post(f"{BASE_URL}marquer_toutes_lues/", headers=AuthService.get_headers())
         else:
-            response = requests.post(f"{BASE_URL}/{notification_id}/marquer_lue/", headers=AuthService.get_headers())
+            response = requests.post(f"{BASE_URL}{notification_id}/marquer_lue/", headers=AuthService.get_headers())
 
         if response.status_code in [200, 201]:
             return {"success": True}

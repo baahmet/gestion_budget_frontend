@@ -253,11 +253,11 @@ class NotificationsWidget(QDialog):
         self.list_widget.clear()
         self.status_label.setText("Chargement des notifications...")
 
-        # Simuler un chargement (remplacer par votre appel API)
-        QTimer.singleShot(500, self._finish_loading)
+        # Remplacer le timer simulé par un appel direct
+        self._finish_loading()
 
     def _finish_loading(self):
-        result = get_notifications()  # Votre fonction de service
+        result = get_notifications()
         if result["success"]:
             notifications = result["data"]
 
@@ -280,22 +280,46 @@ class NotificationsWidget(QDialog):
                 self.list_widget.setItemWidget(item, widget)
 
                 if not notif.get("lu", False) and hasattr(widget, "read_button"):
+                    # Correction du problème de lambda
                     widget.read_button.clicked.connect(
-                        lambda checked=False, n=notif: self.mark_notification_as_read(n)
+                        lambda checked, n=notif: self._handle_mark_as_read(n)
                     )
+
+            # Connecter le bouton "Tout marquer comme lu" une seule fois
+            if not hasattr(self, '_mark_all_connected'):
+                self.mark_all_read_btn.clicked.connect(self.mark_all_as_read)
+                self.refresh_btn.clicked.connect(self.load_notifications)
+                self._mark_all_connected = True
+
         else:
             self.status_label.setText("Erreur de chargement")
             QMessageBox.critical(self, "Erreur", result["message"])
 
+    def _handle_mark_as_read(self, notification):
+        """Wrapper pour gérer le marquage comme lu"""
+        self.mark_notification_as_read(notification)
+
     def mark_notification_as_read(self, notification):
         """Marquer une notification spécifique comme lue"""
         if notification.get("id"):
+            print(f"Tentative de marquage de la notification {notification['id']}")  # Debug
             result = mark_as_read(notification["id"])
-            if result["success"]:
+            print("Résultat:", result)  # Debug
+
+            if result.get("success"):
                 self.load_notifications()
             else:
-                QMessageBox.warning(self, "Avertissement",
-                                    "Impossible de marquer cette notification comme lue")
+                QMessageBox.warning(
+                    self,
+                    "Avertissement",
+                    result.get("message", "Impossible de marquer cette notification comme lue")
+                )
+        else:
+            QMessageBox.warning(
+                self,
+                "Avertissement",
+                "Notification invalide: ID manquant"
+            )
 
     def mark_all_as_read(self):
         """Marquer toutes les notifications comme lues"""
@@ -307,11 +331,20 @@ class NotificationsWidget(QDialog):
         )
 
         if confirm == QMessageBox.Yes:
+            print("Tentative de marquage global")  # Debug
             result = mark_as_read("all")
-            if result["success"]:
+            print("Résultat global:", result)  # Debug
+
+            if result.get("success"):
                 self.load_notifications()
-                QMessageBox.information(self, "Succès",
-                                        "Toutes les notifications ont été marquées comme lues")
+                QMessageBox.information(
+                    self,
+                    "Succès",
+                    result.get("message", "Toutes les notifications ont été marquées comme lues")
+                )
             else:
-                QMessageBox.warning(self, "Avertissement",
-                                    "Impossible de marquer les notifications comme lues")
+                QMessageBox.warning(
+                    self,
+                    "Avertissement",
+                    result.get("message", "Impossible de marquer les notifications comme lues")
+                )

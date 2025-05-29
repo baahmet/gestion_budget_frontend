@@ -551,34 +551,121 @@ class JournalAuditWidget(QWidget):
     def export_data(self):
         try:
             from PyQt5.QtWidgets import QFileDialog
-            import csv
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
 
             # Demander à l'utilisateur où enregistrer le fichier
             filename, _ = QFileDialog.getSaveFileName(
                 self, "Exporter les logs d'audit",
-                f"audit_logs_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                "Fichiers CSV (*.csv)"
+                f"audit_logs_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                "Fichiers Excel (*.xlsx)"
             )
 
-            if filename:
-                with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                    writer = csv.writer(csvfile)
-                    # Écrire l'en-tête
-                    writer.writerow(["Utilisateur", "Email", "Action", "Date"])
+            if not filename:
+                return
 
-                    # Écrire les données
-                    for log in self.filtered_logs:
-                        writer.writerow([
-                            log.get("utilisateur_nom", "Inconnu"),
-                            log.get("utilisateur_email", "Inconnu"),
-                            log.get("action", "N/A"),
-                            log.get("date_heure", "")[:19]
-                        ])
+            # Créer un nouveau classeur Excel
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Journal d'audit"
 
-                self.show_success_message("Export réussi",
-                                          f"Les logs d'audit ont été exportés avec succès dans le fichier:\n{filename}")
+            # Styles
+            header_font = Font(name='Calibri', bold=True, color="FFFFFF", size=12)  # Police blanche
+            header_fill = PatternFill(start_color="34495E", end_color="34495E", fill_type="solid")  # Fond sombre
+            header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            thin_border = Border(left=Side(style='thin'),
+                                 right=Side(style='thin'),
+                                 top=Side(style='thin'),
+                                 bottom=Side(style='thin'))
+
+            data_font = Font(name='Calibri', size=11)
+            data_alignment = Alignment(horizontal="left", vertical="center")
+
+            # Couleurs pour les types d'action
+            action_colors = {
+                "création": "27AE60",  # vert
+                "ajout": "27AE60",
+                "suppression": "E74C3C",  # rouge
+                "supprimer": "E74C3C",
+                "modification": "F39C12",  # orange
+                "mise à jour": "F39C12",
+                "connexion": "3498DB",  # bleu
+                "login": "3498DB"
+            }
+
+            # En-têtes
+            headers = ["Utilisateur", "Email", "Action", "Date"]
+            for col_num, header in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col_num, value=header)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+                cell.border = thin_border
+
+            # Données
+            for row_num, log in enumerate(self.filtered_logs, 2):
+                # Récupérer les données
+                nom = log.get("utilisateur_nom", "Inconnu")
+                email = log.get("utilisateur_email", "Inconnu")
+                action = log.get("action", "N/A")
+                date_heure = log.get("date_heure", "")[:19]  # Format ISO
+
+                # Écrire les données
+                ws.cell(row=row_num, column=1, value=nom).font = data_font
+                ws.cell(row=row_num, column=2, value=email).font = data_font
+                action_cell = ws.cell(row=row_num, column=3, value=action)
+                ws.cell(row=row_num, column=4, value=date_heure).font = data_font
+
+                # Appliquer le style à toute la ligne
+                for col_num in range(1, 5):
+                    cell = ws.cell(row=row_num, column=col_num)
+                    cell.alignment = data_alignment
+                    cell.border = thin_border
+
+                    # Alternance des couleurs de fond
+                    if row_num % 2 == 0:
+                        cell.fill = PatternFill(start_color="F8F9FA", end_color="F8F9FA", fill_type="solid")
+
+                # Colorer la cellule d'action selon le type
+                action_lower = action.lower()
+                for key, color in action_colors.items():
+                    if key in action_lower:
+                        action_cell.font = Font(name='Calibri', bold=True, color=color, size=11)
+                        break
+
+            # Ajuster la largeur des colonnes
+            for col in ws.columns:
+                max_length = 0
+                column = col[0].column_letter  # Get the column name
+                for cell in col:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2) * 1.2
+                ws.column_dimensions[column].width = adjusted_width
+
+            # Ajouter un filtre automatique
+            ws.auto_filter.ref = f"A1:D{len(self.filtered_logs) + 1}"
+
+            # Ajouter un titre et des métadonnées
+            ws['A1'].value = "JOURNAL D'AUDIT DES ACTIONS UTILISATEURS"
+            ws.merge_cells('A1:D1')
+            title_cell = ws['A1']
+            title_cell.font = Font(name='Calibri', bold=True, size=14, color="2C3E50")
+            title_cell.alignment = Alignment(horizontal="center")
+
+            # Enregistrer le fichier
+            wb.save(filename)
+
+            self.show_success_message("Export réussi",
+                                      f"Les logs d'audit ont été exportés avec succès dans le fichier:\n{filename}")
         except Exception as e:
             self.show_error_message("Erreur d'exportation", f"Une erreur est survenue lors de l'exportation: {str(e)}")
+
+
 
     def show_error_message(self, title, message):
         msg = QMessageBox(self)

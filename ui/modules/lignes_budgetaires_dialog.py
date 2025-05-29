@@ -127,8 +127,8 @@ class LigneBudgetaireDialog(QDialog):
 
         # Tableau
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Nom de la ligne", "Montant alloué", "% du budget", "Actions"])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Nom de la ligne", "Montant alloué", "Montant restant", "% du budget", "Actions"])
         self.table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
@@ -152,12 +152,17 @@ class LigneBudgetaireDialog(QDialog):
                 background-color: #e0f2fe;
                 color: #2c3e50;
             }
+            /* Style spécifique pour la colonne montant restant */
+            QTableWidget::item[data-column="2"] {
+                font-weight: bold;
+            }
         """)
 
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Nouvelle colonne
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)  # Actions décalées
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setAlternatingRowColors(True)
@@ -284,7 +289,6 @@ class LigneBudgetaireDialog(QDialog):
         paginated_lignes = self.filtered_lignes[start_index:end_index]
 
         self.table.setRowCount(len(paginated_lignes))
-
         for i, ligne in enumerate(paginated_lignes):
             # Nom de la ligne
             nom_item = QTableWidgetItem(ligne['article'])
@@ -295,7 +299,20 @@ class LigneBudgetaireDialog(QDialog):
             montant_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.table.setItem(i, 1, montant_item)
 
-            # Pourcentage du budget
+            # Montant restant (nouvelle colonne)
+            montant_restant = ligne.get('montant_restant', ligne['montant_alloue'])  # Fallback si le champ n'existe pas
+            restant_item = QTableWidgetItem(f"{montant_restant:,.2f} F")
+            restant_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+            # Colorer en rouge si le montant restant est faible
+            if montant_restant < (ligne['montant_alloue'] * 0.2):  # Moins de 20% restant
+                restant_item.setForeground(QBrush(QColor("#e74c3c")))
+            elif montant_restant < (ligne['montant_alloue'] * 0.5):  # Moins de 50% restant
+                restant_item.setForeground(QBrush(QColor("#f39c12")))
+
+            self.table.setItem(i, 2, restant_item)
+
+            # Pourcentage du budget (décalé à la colonne 3)
             if self.total_budget > 0:
                 percent = (ligne['montant_alloue'] / self.total_budget) * 100
                 percent_item = QTableWidgetItem(f"{percent:.1f}%")
@@ -309,13 +326,17 @@ class LigneBudgetaireDialog(QDialog):
                 else:
                     percent_item.setForeground(QBrush(QColor("#27ae60")))
 
-                self.table.setItem(i, 2, percent_item)
+                self.table.setItem(i, 3, percent_item)
 
-            # Actions
+            # Actions (décalé à la colonne 4)
             action_widget = QWidget()
             action_layout = QHBoxLayout(action_widget)
             action_layout.setContentsMargins(0, 0, 0, 0)
             action_layout.setSpacing(5)
+
+
+
+            self.table.setCellWidget(i, 4, action_widget)
 
             modifier_btn = QPushButton("✏️ Modifier")
             modifier_btn.setStyleSheet("""
@@ -355,7 +376,7 @@ class LigneBudgetaireDialog(QDialog):
             supprimer_btn.clicked.connect(lambda _, l=ligne: self.supprimer_ligne(l))
             action_layout.addWidget(supprimer_btn)
 
-            self.table.setCellWidget(i, 3, action_widget)
+            self.table.setCellWidget(i, 4, action_widget)
 
             # Alternance des couleurs de ligne
             if i % 2 == 0:
